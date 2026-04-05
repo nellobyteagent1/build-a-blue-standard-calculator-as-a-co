@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blue Calculator</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0a1628 0%,#1a2a4a 50%,#0d1f3c 100%);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+  .calc{width:340px;background:linear-gradient(145deg,#1b2d50,#162544);border-radius:24px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 0 1px rgba(100,160,255,.08),inset 0 1px 0 rgba(255,255,255,.05)}
+  .display{background:linear-gradient(135deg,#0d1a2e,#0f1e35);border-radius:16px;padding:20px 24px;margin-bottom:20px;min-height:100px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;box-shadow:inset 0 2px 8px rgba(0,0,0,.4),0 0 0 1px rgba(80,140,255,.1)}
+  .expr{font-size:14px;color:rgba(140,180,255,.6);min-height:20px;word-break:break-all;text-align:right}
+  .result{font-size:40px;color:#e0ecff;font-weight:300;letter-spacing:1px;word-break:break-all;text-align:right;line-height:1.2;margin-top:4px}
+  .buttons{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  button{border:none;border-radius:14px;font-size:18px;font-weight:500;cursor:pointer;padding:18px 0;transition:all .15s;outline:none;-webkit-tap-highlight-color:transparent}
+  button:active{transform:scale(.95)}
+  .fn{background:linear-gradient(145deg,#1e3a5f,#1a3255);color:#7ab4ff;box-shadow:0 4px 12px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.06)}
+  .fn:hover{background:linear-gradient(145deg,#244470,#1f3c62)}
+  .op{background:linear-gradient(145deg,#2563eb,#1d4ed8);color:#fff;box-shadow:0 4px 15px rgba(37,99,235,.4),inset 0 1px 0 rgba(255,255,255,.15)}
+  .op:hover{background:linear-gradient(145deg,#3b82f6,#2563eb)}
+  .num{background:linear-gradient(145deg,#1a2d4d,#162541);color:#c8deff;box-shadow:0 4px 12px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.05)}
+  .num:hover{background:linear-gradient(145deg,#213759,#1c304f)}
+  .eq{background:linear-gradient(145deg,#3b82f6,#2563eb);color:#fff;box-shadow:0 4px 20px rgba(59,130,246,.5),inset 0 1px 0 rgba(255,255,255,.2)}
+  .eq:hover{background:linear-gradient(145deg,#60a5fa,#3b82f6)}
+  .zero{grid-column:span 2}
+  @media(max-width:400px){.calc{width:calc(100vw - 32px);padding:16px}.result{font-size:32px}button{padding:16px 0;font-size:16px}}
+</style>
+</head>
+<body>
+<div class="calc">
+  <div class="display">
+    <div class="expr" id="expr"></div>
+    <div class="result" id="result">0</div>
+  </div>
+  <div class="buttons">
+    <button class="fn" data-action="clear">AC</button>
+    <button class="fn" data-action="backspace">&larr;</button>
+    <button class="fn" data-action="percent">%</button>
+    <button class="op" data-action="op" data-val="/">÷</button>
+    <button class="num" data-action="digit" data-val="7">7</button>
+    <button class="num" data-action="digit" data-val="8">8</button>
+    <button class="num" data-action="digit" data-val="9">9</button>
+    <button class="op" data-action="op" data-val="*">&times;</button>
+    <button class="num" data-action="digit" data-val="4">4</button>
+    <button class="num" data-action="digit" data-val="5">5</button>
+    <button class="num" data-action="digit" data-val="6">6</button>
+    <button class="op" data-action="op" data-val="-">&minus;</button>
+    <button class="num" data-action="digit" data-val="1">1</button>
+    <button class="num" data-action="digit" data-val="2">2</button>
+    <button class="num" data-action="digit" data-val="3">3</button>
+    <button class="op" data-action="op" data-val="+">+</button>
+    <button class="num zero" data-action="digit" data-val="0">0</button>
+    <button class="num" data-action="digit" data-val=".">.</button>
+    <button class="eq" data-action="equals">=</button>
+  </div>
+</div>
+<script>
+(function(){
+  let current='0', previous='', operator='', resetNext=false;
+  const $r=document.getElementById('result'), $e=document.getElementById('expr');
+
+  function fmt(n){
+    if(n==='Error') return n;
+    let num=parseFloat(n);
+    if(isNaN(num)) return '0';
+    if(Math.abs(num)>1e15||Math.abs(num)<1e-15&&num!==0) return num.toExponential(6);
+    let s=parseFloat(num.toPrecision(12)).toString();
+    return s;
+  }
+
+  function opSymbol(o){return{'*':' \u00d7 ','/':' \u00f7 ','+':" + ",'-':' \u2212 '}[o]||o}
+
+  function update(){
+    $r.textContent=current==='Error'?'Error':fmt(current);
+    $e.textContent=previous&&operator?fmt(previous)+opSymbol(operator):'';
+    // Shrink font if too long
+    let len=$r.textContent.length;
+    $r.style.fontSize=len>12?'24px':len>8?'32px':'40px';
+  }
+
+  function calculate(a,op,b){
+    a=parseFloat(a);b=parseFloat(b);
+    if(isNaN(a)||isNaN(b)) return 'Error';
+    let r;
+    switch(op){
+      case'+':r=a+b;break;case'-':r=a-b;break;
+      case'*':r=a*b;break;case'/':r=b===0?'Error':a/b;break;
+      default:r=b;
+    }
+    return r==='Error'?'Error':String(r);
+  }
+
+  function inputDigit(d){
+    if(resetNext){current='0';resetNext=false}
+    if(d==='.'){
+      if(current.includes('.'))return;
+      current+='.';
+    }else{
+      current=current==='0'?d:current+d;
+    }
+    update();
+  }
+
+  function inputOp(op){
+    if(previous&&operator&&!resetNext){
+      let res=calculate(previous,operator,current);
+      previous=res;current=res;
+    }else{
+      previous=current;
+    }
+    operator=op;resetNext=true;
+    update();
+  }
+
+  function inputEquals(){
+    if(!operator||!previous)return;
+    let res=calculate(previous,operator,current);
+    let expr=fmt(previous)+opSymbol(operator)+fmt(current)+' =';
+    current=res;previous='';operator='';resetNext=true;
+    $e.textContent=expr;
+    $r.textContent=fmt(current);
+    let len=$r.textContent.length;
+    $r.style.fontSize=len>12?'24px':len>8?'32px':'40px';
+  }
+
+  function inputClear(){current='0';previous='';operator='';resetNext=false;update()}
+
+  function inputBackspace(){
+    if(resetNext)return;
+    current=current.length>1?current.slice(0,-1):'0';
+    update();
+  }
+
+  function inputPercent(){
+    current=String(parseFloat(current)/100);
+    update();
+  }
+
+  document.querySelector('.buttons').addEventListener('click',function(e){
+    let btn=e.target.closest('button');
+    if(!btn)return;
+    let a=btn.dataset.action;
+    if(a==='digit')inputDigit(btn.dataset.val);
+    else if(a==='op')inputOp(btn.dataset.val);
+    else if(a==='equals')inputEquals();
+    else if(a==='clear')inputClear();
+    else if(a==='backspace')inputBackspace();
+    else if(a==='percent')inputPercent();
+  });
+
+  document.addEventListener('keydown',function(e){
+    if(e.key>='0'&&e.key<='9')inputDigit(e.key);
+    else if(e.key==='.')inputDigit('.');
+    else if(e.key==='+')inputOp('+');
+    else if(e.key==='-')inputOp('-');
+    else if(e.key==='*')inputOp('*');
+    else if(e.key==='/')  {e.preventDefault();inputOp('/');}
+    else if(e.key==='%')inputPercent();
+    else if(e.key==='Enter'||e.key==='=')inputEquals();
+    else if(e.key==='Backspace')inputBackspace();
+    else if(e.key==='Escape'||e.key==='Delete')inputClear();
+  });
+
+  update();
+})();
+</script>
+</body>
+</html>
